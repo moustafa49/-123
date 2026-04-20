@@ -1,31 +1,30 @@
 <!DOCTYPE html><html>
 <head>
 <meta charset="UTF-8">
-<title>Greedy Cat — ELITE AI</title><style>
+<title>Greedy Cat — PRO BOT AI</title><style>
 body{font-family:Arial;background:#020617;color:white;text-align:center;padding:20px}
 h1{color:#22c55e}
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:15px}
 button{padding:12px;font-size:20px;background:#1e293b;color:white;border:none;border-radius:8px;cursor:pointer}
 .section{margin-top:14px}
-</style></head><body><h1>Greedy Cat — ELITE AI</h1><div class="grid">
-<button onclick="add('corn')">🌽</button>
-<button onclick="add('tomato')">🍅</button>
-<button onclick="add('carrot')">🥕</button>
-<button onclick="add('pepper')">🌶️</button>
-<button onclick="add('fish')">🐟</button>
-<button onclick="add('shrimp')">🦐</button>
-<button onclick="add('cow')">🐄</button>
-<button onclick="add('chicken')">🐔</button>
-</div><button onclick="undo()">Undo</button>
+.active{background:#22c55e !important}
+</style></head><body><h1>Greedy Cat — PRO BOT AI 🤖</h1><div class="grid">
+<button id="corn" onclick="add('corn')">🌽</button>
+<button id="tomato" onclick="add('tomato')">🍅</button>
+<button id="carrot" onclick="add('carrot')">🥕</button>
+<button id="pepper" onclick="add('pepper')">🌶️</button>
+<button id="fish" onclick="add('fish')">🐟</button>
+<button id="shrimp" onclick="add('shrimp')">🦐</button>
+<button id="cow" onclick="add('cow')">🐄</button>
+<button id="chicken" onclick="add('chicken')">🐔</button>
+</div><button onclick="toggleBot()">BOT: OFF</button>
+<button onclick="undo()">Undo</button>
 <button onclick="reset()">Reset</button>
 
 <div class="section"><b>History</b><div id="history"></div></div>
-<div class="section"><b>Absence</b><div id="absence"></div></div>
-<div class="section"><b>Cycle</b><div id="cycle"></div></div>
-<div class="section"><b>Drift</b><div id="drift"></div></div>
-<div class="section"><b>Trap</b><div id="trap"></div></div><div class="section"><b>FINAL PICK</b><div id="prediction"></div></div>
-<div class="section"><b>Monte Carlo</b><div id="monte"></div></div><div class="section"><b>Confidence</b><div id="confidence"></div></div>
-<div class="section"><b>Accuracy</b><div id="accuracy"></div></div><script>
+<div class="section"><b>Heatmap</b><div id="heat"></div></div>
+<div class="section"><b>Trap</b><div id="trap"></div></div><div class="section"><b>Top5</b><div id="top5"></div></div>
+<div class="section"><b>Top6</b><div id="top6"></div></div><div class="section"><b>Confidence</b><div id="confidence"></div></div><script>
 
 const foods=["corn","tomato","carrot","pepper","fish","shrimp","cow","chicken"]
 const veg=["corn","tomato","carrot","pepper"]
@@ -37,96 +36,57 @@ fish:"🐟",shrimp:"🦐",cow:"🐄",chicken:"🐔"
 }
 
 let history=[]
-let weights={}
-let streak={}
-let predictions=0
-let correct=0
+let heat={}
+let memory={}
+let bot=false
 
-foods.forEach(f=>{
-weights[f]=1
-streak[f]=0
-})
+foods.forEach(f=>heat[f]=0)
 
 /* ADD */
 
-function add(food){
+function add(f){
+history.push(f)
+heat[f]++
 
-if(window.lastPrediction){
-predictions++
+let seq=history.slice(-3).join("-")
+memory[seq]=(memory[seq]||0)+1
 
-if(window.lastPrediction.includes(food)){
-correct++
-weights[food]+=0.4
-streak[food]++
-}else{
-window.lastPrediction.forEach(f=>{
-weights[f]-=0.07
-streak[f]=0
-})
-}
-}
-
-history.push(food)
 update()
 }
 
 function undo(){history.pop();update()}
-function reset(){history=[];update()}
+function reset(){history=[];memory={};update()}
 
-/* ABSENCE */
+/* BOT */
 
-function absence(f){
-for(let i=history.length-1;i>=0;i--){
-if(history[i]==f)return history.length-i
-}
-return history.length
-}
-
-/* DRIFT */
-
-function drift(){
-let last=history.slice(-10)
-let v=last.filter(x=>veg.includes(x)).length
-let m=last.filter(x=>meat.includes(x)).length
-
-if(v-m>4)return "Vegetable Strong"
-if(m-v>4)return "Meat Strong"
-
-return "Balanced"
+function toggleBot(){
+bot=!bot
+event.target.innerText="BOT: "+(bot?"ON":"OFF")
 }
 
 /* TRAP */
 
 function trap(){
 let last=history.slice(-4)
-if(last.length<4)return "Safe"
-
 let same=last.every(x=>x===last[0])
-if(same)return "Hard Trap ⚠️"
-
-let count=last.filter(x=>x===last[0]).length
-if(count>=3)return "Soft Trap"
-
+if(same) return "Trap ⚠️"
 return "Safe"
 }
 
 /* PATTERN */
 
 function patternScore(f){
+
 let score=0
-for(let i=0;i<history.length-3;i++){
-let a=history.slice(i,i+2).join("-")
-let b=history.slice(-2).join("-")
-if(a===b && history[i+2]===f) score+=3
+let last=history.slice(-3).join("-")
+
+for(let key in memory){
+if(key===last){
+score+=memory[key]
 }
+}
+
 return score
-}
-
-/* MOMENTUM */
-
-function momentum(f){
-let last5=history.slice(-5)
-return last5.filter(x=>x===f).length
 }
 
 /* AI */
@@ -137,18 +97,14 @@ let s={}
 foods.forEach(f=>s[f]=0)
 
 foods.forEach(f=>{
-s[f]+=weights[f]*1.5
 s[f]+=patternScore(f)
-s[f]+=absence(f)*0.4
-s[f]+=momentum(f)*1.2
-
-if(streak[f]>=2) s[f]+=2
+s[f]+=heat[f]*0.3
 
 let last5=history.slice(-5)
 let count=last5.filter(x=>x===f).length
 
-if(count>=3)s[f]-=3
 if(count==0)s[f]+=2
+if(count>=3)s[f]-=3
 
 s[f]+=Math.random()*0.05
 })
@@ -158,15 +114,14 @@ return s
 
 /* MONTE */
 
-function monteCarlo(){
+function monte(){
 
 let sim={}
 foods.forEach(f=>sim[f]=0)
 
-for(let i=0;i<15000;i++){
+for(let i=0;i<8000;i++){
 
 let scores=aiScores()
-
 let total=Object.values(scores).reduce((a,b)=>a+b,0)
 
 let r=Math.random()*total
@@ -182,53 +137,23 @@ break
 
 }
 
-foods.forEach(f=>{
-sim[f]=(sim[f]/15000*100)
-})
-
 return sim
 }
 
 /* BALANCE */
 
-function balanceFilter(sorted){
+function balance(sorted){
 
 let vegList=sorted.filter(x=>veg.includes(x[0]))
 let meatList=sorted.filter(x=>meat.includes(x[0]))
 
-let final=[]
+let top5=vegList.slice(0,3).map(x=>x[0])
+.concat(meatList.slice(0,2).map(x=>x[0]))
 
-// 3 veg
-for(let i=0;i<3;i++){
-if(vegList[i]) final.push(vegList[i][0])
-}
+let top6=vegList.slice(0,3).map(x=>x[0])
+.concat(meatList.slice(0,3).map(x=>x[0]))
 
-// 2 meat
-for(let i=0;i<2;i++){
-if(meatList[i]) final.push(meatList[i][0])
-}
-
-return final
-}
-
-/* DECISION */
-
-function decisionEngine(){
-
-let monte=monteCarlo()
-
-let sorted=Object.entries(monte)
-.sort((a,b)=>b[1]-a[1])
-
-let balanced=balanceFilter(sorted)
-
-let confidence=sorted[0][1]-sorted[1][1]
-
-return {
-pick: balanced,
-confidence: confidence,
-monte: monte
-}
+return {top5,top6}
 }
 
 /* UPDATE */
@@ -238,27 +163,41 @@ function update(){
 document.getElementById("history").innerHTML=
 history.slice(-20).map(x=>emoji[x]).join(" ")
 
-document.getElementById("absence").innerHTML=
-foods.map(f=>emoji[f]+" "+absence(f)).join(" | ")
+document.getElementById("heat").innerHTML=
+foods.map(f=>emoji[f]+" "+heat[f]).join(" | ")
 
-document.getElementById("drift").innerHTML=drift()
 document.getElementById("trap").innerHTML=trap()
 
-let decision=decisionEngine()
+let m=monte()
 
-window.lastPrediction=decision.pick
+let sorted=Object.entries(m).sort((a,b)=>b[1]-a[1])
 
-document.getElementById("prediction").innerHTML=
-decision.pick.map(x=>emoji[x]).join(" ")
+let b=balance(sorted)
 
-document.getElementById("monte").innerHTML=
-foods.map(f=>emoji[f]+" "+decision.monte[f].toFixed(1)+"%").join(" | ")
+document.getElementById("top5").innerHTML=
+b.top5.map(x=>emoji[x]).join(" ")
 
-document.getElementById("confidence").innerHTML=
-decision.confidence.toFixed(2)
+document.getElementById("top6").innerHTML=
+b.top6.map(x=>emoji[x]).join(" ")
 
-let acc=predictions?((correct/predictions)*100).toFixed(1):0
-document.getElementById("accuracy").innerHTML=acc+"%"
+let conf=sorted[0][1]-sorted[1][1]
+
+document.getElementById("confidence").innerHTML=conf.toFixed(2)
+
+/* BOT ACTION */
+
+if(bot){
+
+// highlight picks
+foods.forEach(f=>{
+document.getElementById(f).classList.remove("active")
+})
+
+b.top5.forEach(f=>{
+document.getElementById(f).classList.add("active")
+})
+
+}
 
 }
 
