@@ -1,13 +1,13 @@
 <!DOCTYPE html><html>
 <head>
 <meta charset="UTF-8">
-<title>Greedy Cat — PRO AI</title><style>
+<title>Greedy Cat — ELITE AI</title><style>
 body{font-family:Arial;background:#020617;color:white;text-align:center;padding:20px}
 h1{color:#22c55e}
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:15px}
 button{padding:12px;font-size:20px;background:#1e293b;color:white;border:none;border-radius:8px;cursor:pointer}
 .section{margin-top:14px}
-</style></head><body><h1>Greedy Cat — PRO AI</h1><div class="grid">
+</style></head><body><h1>Greedy Cat — ELITE AI</h1><div class="grid">
 <button onclick="add('corn')">🌽</button>
 <button onclick="add('tomato')">🍅</button>
 <button onclick="add('carrot')">🥕</button>
@@ -20,12 +20,11 @@ button{padding:12px;font-size:20px;background:#1e293b;color:white;border:none;bo
 <button onclick="reset()">Reset</button>
 
 <div class="section"><b>History</b><div id="history"></div></div>
-<div class="section"><b>Repeat</b><div id="repeat"></div></div>
 <div class="section"><b>Absence</b><div id="absence"></div></div>
 <div class="section"><b>Cycle</b><div id="cycle"></div></div>
 <div class="section"><b>Drift</b><div id="drift"></div></div>
-<div class="section"><b>Trap</b><div id="trap"></div></div><div class="section"><b>Prediction</b><div id="prediction"></div></div>
-<div class="section"><b>Top5</b><div id="top5"></div></div><div class="section"><b>Monte Carlo</b><div id="monte"></div></div><div class="section"><b>Confidence</b><div id="confidence"></div></div>
+<div class="section"><b>Trap</b><div id="trap"></div></div><div class="section"><b>FINAL PICK</b><div id="prediction"></div></div>
+<div class="section"><b>Monte Carlo</b><div id="monte"></div></div><div class="section"><b>Confidence</b><div id="confidence"></div></div>
 <div class="section"><b>Accuracy</b><div id="accuracy"></div></div><script>
 
 const foods=["corn","tomato","carrot","pepper","fish","shrimp","cow","chicken"]
@@ -74,18 +73,6 @@ update()
 function undo(){history.pop();update()}
 function reset(){history=[];update()}
 
-/* REPEAT */
-
-function repeat(){
-let last=history[history.length-1]
-let c=0
-for(let i=history.length-1;i>=0;i--){
-if(history[i]==last)c++
-else break
-}
-return last?emoji[last]+" x"+c:""
-}
-
 /* ABSENCE */
 
 function absence(f){
@@ -95,15 +82,6 @@ if(history[i]==f)return history.length-i
 return history.length
 }
 
-/* CYCLE */
-
-function cycle(){
-if(history.length<12)return "None"
-let a=history.slice(-6).join("-")
-let b=history.slice(-12,-6).join("-")
-return a===b?"Detected":"None"
-}
-
 /* DRIFT */
 
 function drift(){
@@ -111,7 +89,7 @@ let last=history.slice(-10)
 let v=last.filter(x=>veg.includes(x)).length
 let m=last.filter(x=>meat.includes(x)).length
 
-if(v-m>4)return "Veg Strong"
+if(v-m>4)return "Vegetable Strong"
 if(m-v>4)return "Meat Strong"
 
 return "Balanced"
@@ -166,13 +144,13 @@ s[f]+=momentum(f)*1.2
 
 if(streak[f]>=2) s[f]+=2
 
-// anti rng
 let last5=history.slice(-5)
 let count=last5.filter(x=>x===f).length
+
 if(count>=3)s[f]-=3
 if(count==0)s[f]+=2
 
-s[f]+=Math.random()*0.2
+s[f]+=Math.random()*0.05
 })
 
 return s
@@ -185,7 +163,7 @@ function monteCarlo(){
 let sim={}
 foods.forEach(f=>sim[f]=0)
 
-for(let i=0;i<20000;i++){
+for(let i=0;i<15000;i++){
 
 let scores=aiScores()
 
@@ -205,10 +183,52 @@ break
 }
 
 foods.forEach(f=>{
-sim[f]=(sim[f]/20000*100).toFixed(1)
+sim[f]=(sim[f]/15000*100)
 })
 
 return sim
+}
+
+/* BALANCE */
+
+function balanceFilter(sorted){
+
+let vegList=sorted.filter(x=>veg.includes(x[0]))
+let meatList=sorted.filter(x=>meat.includes(x[0]))
+
+let final=[]
+
+// 3 veg
+for(let i=0;i<3;i++){
+if(vegList[i]) final.push(vegList[i][0])
+}
+
+// 2 meat
+for(let i=0;i<2;i++){
+if(meatList[i]) final.push(meatList[i][0])
+}
+
+return final
+}
+
+/* DECISION */
+
+function decisionEngine(){
+
+let monte=monteCarlo()
+
+let sorted=Object.entries(monte)
+.sort((a,b)=>b[1]-a[1])
+
+let balanced=balanceFilter(sorted)
+
+let confidence=sorted[0][1]-sorted[1][1]
+
+return {
+pick: balanced,
+confidence: confidence,
+monte: monte
+}
 }
 
 /* UPDATE */
@@ -218,39 +238,24 @@ function update(){
 document.getElementById("history").innerHTML=
 history.slice(-20).map(x=>emoji[x]).join(" ")
 
-document.getElementById("repeat").innerHTML=repeat()
-
 document.getElementById("absence").innerHTML=
 foods.map(f=>emoji[f]+" "+absence(f)).join(" | ")
 
-document.getElementById("cycle").innerHTML=cycle()
 document.getElementById("drift").innerHTML=drift()
 document.getElementById("trap").innerHTML=trap()
 
-let s=aiScores()
-let sorted=Object.entries(s).sort((a,b)=>b[1]-a[1])
+let decision=decisionEngine()
 
-let top5=sorted.slice(0,5).map(x=>x[0])
-window.lastPrediction=top5
+window.lastPrediction=decision.pick
 
 document.getElementById("prediction").innerHTML=
-top5.map(x=>emoji[x]).join(" ")
-
-document.getElementById("top5").innerHTML=
-top5.map(x=>emoji[x]).join(" ")
-
-let monte=monteCarlo()
+decision.pick.map(x=>emoji[x]).join(" ")
 
 document.getElementById("monte").innerHTML=
-foods.map(f=>emoji[f]+" "+monte[f]+"%").join(" | ")
+foods.map(f=>emoji[f]+" "+decision.monte[f].toFixed(1)+"%").join(" | ")
 
-let best=sorted[0][1]
-let second=sorted[1][1]
-
-let conf=(best-second)/(best+0.0001)*100
-if(trap().includes("Trap")) conf*=0.6
-
-document.getElementById("confidence").innerHTML=conf.toFixed(1)+"%"
+document.getElementById("confidence").innerHTML=
+decision.confidence.toFixed(2)
 
 let acc=predictions?((correct/predictions)*100).toFixed(1):0
 document.getElementById("accuracy").innerHTML=acc+"%"
