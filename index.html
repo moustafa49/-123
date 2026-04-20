@@ -1,94 +1,154 @@
 <!DOCTYPE html><html>
 <head>
 <meta charset="UTF-8">
-<title>Greedy Cat — SCREEN VISION AI</title><style>
-body{background:#020617;color:white;text-align:center;font-family:Arial}
-video,canvas{width:90%;margin-top:10px;border-radius:10px}
-button{padding:10px;margin:5px;border:none;border-radius:8px;background:#1e293b;color:white}
-</style></head><body><h1>Greedy Cat — SCREEN + VISION AI</h1><button onclick="startScreen()">Share Screen</button>
-<button onclick="toggleAuto()">Auto: OFF</button>
+<title>Greedy Cat — PRO AI</title><style>
+body{font-family:Arial;background:#020617;color:white;text-align:center;padding:20px}
+h1{color:#22c55e}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:15px}
+button{padding:12px;font-size:20px;background:#1e293b;color:white;border:none;border-radius:8px;cursor:pointer}
+.section{margin-top:14px}
+</style></head><body><h1>Greedy Cat — PRO AI</h1><div class="grid">
+<button onclick="add('corn')">🌽</button>
+<button onclick="add('tomato')">🍅</button>
+<button onclick="add('carrot')">🥕</button>
+<button onclick="add('pepper')">🌶️</button>
+<button onclick="add('fish')">🐟</button>
+<button onclick="add('shrimp')">🦐</button>
+<button onclick="add('cow')">🐄</button>
+<button onclick="add('chicken')">🐔</button>
+</div><button onclick="undo()">Undo</button>
+<button onclick="reset()">Reset</button>
 
-<video id="video" autoplay></video>
-<canvas id="canvas"></canvas>
-
-<div id="detected"></div>
-<div id="prediction"></div>
-<div id="monte"></div><script>
+<div class="section"><b>History</b><div id="history"></div></div>
+<div class="section"><b>Repeat</b><div id="repeat"></div></div>
+<div class="section"><b>Absence</b><div id="absence"></div></div>
+<div class="section"><b>Cycle</b><div id="cycle"></div></div>
+<div class="section"><b>Drift</b><div id="drift"></div></div>
+<div class="section"><b>Trap</b><div id="trap"></div></div><div class="section"><b>Prediction</b><div id="prediction"></div></div>
+<div class="section"><b>Top5</b><div id="top5"></div></div><div class="section"><b>Monte Carlo</b><div id="monte"></div></div><div class="section"><b>Confidence</b><div id="confidence"></div></div>
+<div class="section"><b>Accuracy</b><div id="accuracy"></div></div><script>
 
 const foods=["corn","tomato","carrot","pepper","fish","shrimp","cow","chicken"]
+const veg=["corn","tomato","carrot","pepper"]
+const meat=["fish","shrimp","cow","chicken"]
+
+const emoji={
+corn:"🌽",tomato:"🍅",carrot:"🥕",pepper:"🌶️",
+fish:"🐟",shrimp:"🦐",cow:"🐄",chicken:"🐔"
+}
 
 let history=[]
-let auto=false
+let weights={}
+let streak={}
+let predictions=0
+let correct=0
 
-/* SCREEN */
+foods.forEach(f=>{
+weights[f]=1
+streak[f]=0
+})
 
-function startScreen(){
-navigator.mediaDevices.getDisplayMedia({video:true})
-.then(stream=>{
-document.getElementById("video").srcObject=stream
+/* ADD */
+
+function add(food){
+
+if(window.lastPrediction){
+predictions++
+
+if(window.lastPrediction.includes(food)){
+correct++
+weights[food]+=0.4
+streak[food]++
+}else{
+window.lastPrediction.forEach(f=>{
+weights[f]-=0.07
+streak[f]=0
 })
 }
-
-/* AUTO */
-
-function toggleAuto(){
-auto=!auto
-event.target.innerText="Auto: "+(auto?"ON":"OFF")
 }
 
-/* CAPTURE + ANALYZE */
-
-function capture(){
-
-let video=document.getElementById("video")
-let canvas=document.getElementById("canvas")
-let ctx=canvas.getContext("2d")
-
-canvas.width=video.videoWidth
-canvas.height=video.videoHeight
-
-ctx.drawImage(video,0,0)
-
-let img=ctx.getImageData(0,0,canvas.width,canvas.height)
-
-let detected=detectByColor(img)
-
-history.push(detected)
-
-document.getElementById("detected").innerHTML="Detected: "+detected
-
+history.push(food)
 update()
-
 }
 
-/* COLOR AI */
+function undo(){history.pop();update()}
+function reset(){history=[];update()}
 
-function detectByColor(img){
+/* REPEAT */
 
-let r=0,g=0,b=0,count=0
-
-for(let i=0;i<img.data.length;i+=40){
-r+=img.data[i]
-g+=img.data[i+1]
-b+=img.data[i+2]
-count++
+function repeat(){
+let last=history[history.length-1]
+let c=0
+for(let i=history.length-1;i>=0;i--){
+if(history[i]==last)c++
+else break
+}
+return last?emoji[last]+" x"+c:""
 }
 
-r/=count
-g/=count
-b/=count
+/* ABSENCE */
 
-// mapping colors
-if(r>200 && g>150) return "corn"
-if(r>200 && g<80) return "tomato"
-if(r>150 && g>80) return "carrot"
-if(g>150 && r<100) return "pepper"
-if(b>150) return "fish"
-if(r>180 && b>100) return "shrimp"
-if(r>120 && g<80 && b<80) return "cow"
+function absence(f){
+for(let i=history.length-1;i>=0;i--){
+if(history[i]==f)return history.length-i
+}
+return history.length
+}
 
-return "chicken"
+/* CYCLE */
 
+function cycle(){
+if(history.length<12)return "None"
+let a=history.slice(-6).join("-")
+let b=history.slice(-12,-6).join("-")
+return a===b?"Detected":"None"
+}
+
+/* DRIFT */
+
+function drift(){
+let last=history.slice(-10)
+let v=last.filter(x=>veg.includes(x)).length
+let m=last.filter(x=>meat.includes(x)).length
+
+if(v-m>4)return "Veg Strong"
+if(m-v>4)return "Meat Strong"
+
+return "Balanced"
+}
+
+/* TRAP */
+
+function trap(){
+let last=history.slice(-4)
+if(last.length<4)return "Safe"
+
+let same=last.every(x=>x===last[0])
+if(same)return "Hard Trap ⚠️"
+
+let count=last.filter(x=>x===last[0]).length
+if(count>=3)return "Soft Trap"
+
+return "Safe"
+}
+
+/* PATTERN */
+
+function patternScore(f){
+let score=0
+for(let i=0;i<history.length-3;i++){
+let a=history.slice(i,i+2).join("-")
+let b=history.slice(-2).join("-")
+if(a===b && history[i+2]===f) score+=3
+}
+return score
+}
+
+/* MOMENTUM */
+
+function momentum(f){
+let last5=history.slice(-5)
+return last5.filter(x=>x===f).length
 }
 
 /* AI */
@@ -99,18 +159,23 @@ let s={}
 foods.forEach(f=>s[f]=0)
 
 foods.forEach(f=>{
-s[f]+=Math.random()*2
+s[f]+=weights[f]*1.5
+s[f]+=patternScore(f)
+s[f]+=absence(f)*0.4
+s[f]+=momentum(f)*1.2
 
-let last=history.slice(-5)
-let count=last.filter(x=>x===f).length
+if(streak[f]>=2) s[f]+=2
 
+// anti rng
+let last5=history.slice(-5)
+let count=last5.filter(x=>x===f).length
+if(count>=3)s[f]-=3
 if(count==0)s[f]+=2
-if(count>=3)s[f]-=2
 
+s[f]+=Math.random()*0.2
 })
 
 return s
-
 }
 
 /* MONTE */
@@ -120,7 +185,7 @@ function monteCarlo(){
 let sim={}
 foods.forEach(f=>sim[f]=0)
 
-for(let i=0;i<5000;i++){
+for(let i=0;i<20000;i++){
 
 let scores=aiScores()
 
@@ -140,41 +205,59 @@ break
 }
 
 foods.forEach(f=>{
-sim[f]=(sim[f]/5000*100).toFixed(1)
+sim[f]=(sim[f]/20000*100).toFixed(1)
 })
 
 return sim
-
 }
 
 /* UPDATE */
 
 function update(){
 
+document.getElementById("history").innerHTML=
+history.slice(-20).map(x=>emoji[x]).join(" ")
+
+document.getElementById("repeat").innerHTML=repeat()
+
+document.getElementById("absence").innerHTML=
+foods.map(f=>emoji[f]+" "+absence(f)).join(" | ")
+
+document.getElementById("cycle").innerHTML=cycle()
+document.getElementById("drift").innerHTML=drift()
+document.getElementById("trap").innerHTML=trap()
+
 let s=aiScores()
 let sorted=Object.entries(s).sort((a,b)=>b[1]-a[1])
 
-let top=sorted.slice(0,5).map(x=>x[0])
+let top5=sorted.slice(0,5).map(x=>x[0])
+window.lastPrediction=top5
 
 document.getElementById("prediction").innerHTML=
-"Prediction: "+top.join(" ")
+top5.map(x=>emoji[x]).join(" ")
+
+document.getElementById("top5").innerHTML=
+top5.map(x=>emoji[x]).join(" ")
 
 let monte=monteCarlo()
 
 document.getElementById("monte").innerHTML=
-JSON.stringify(monte)
+foods.map(f=>emoji[f]+" "+monte[f]+"%").join(" | ")
+
+let best=sorted[0][1]
+let second=sorted[1][1]
+
+let conf=(best-second)/(best+0.0001)*100
+if(trap().includes("Trap")) conf*=0.6
+
+document.getElementById("confidence").innerHTML=conf.toFixed(1)+"%"
+
+let acc=predictions?((correct/predictions)*100).toFixed(1):0
+document.getElementById("accuracy").innerHTML=acc+"%"
 
 }
 
-/* AUTO LOOP */
-
-setInterval(()=>{
-
-if(!auto) return
-
-capture()
-
-},1500)
+update()
 
 </script></body>
 </html>
