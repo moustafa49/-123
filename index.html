@@ -1,0 +1,180 @@
+<!DOCTYPE html><html>
+<head>
+<meta charset="UTF-8">
+<title>Greedy Cat — SCREEN VISION AI</title><style>
+body{background:#020617;color:white;text-align:center;font-family:Arial}
+video,canvas{width:90%;margin-top:10px;border-radius:10px}
+button{padding:10px;margin:5px;border:none;border-radius:8px;background:#1e293b;color:white}
+</style></head><body><h1>Greedy Cat — SCREEN + VISION AI</h1><button onclick="startScreen()">Share Screen</button>
+<button onclick="toggleAuto()">Auto: OFF</button>
+
+<video id="video" autoplay></video>
+<canvas id="canvas"></canvas>
+
+<div id="detected"></div>
+<div id="prediction"></div>
+<div id="monte"></div><script>
+
+const foods=["corn","tomato","carrot","pepper","fish","shrimp","cow","chicken"]
+
+let history=[]
+let auto=false
+
+/* SCREEN */
+
+function startScreen(){
+navigator.mediaDevices.getDisplayMedia({video:true})
+.then(stream=>{
+document.getElementById("video").srcObject=stream
+})
+}
+
+/* AUTO */
+
+function toggleAuto(){
+auto=!auto
+event.target.innerText="Auto: "+(auto?"ON":"OFF")
+}
+
+/* CAPTURE + ANALYZE */
+
+function capture(){
+
+let video=document.getElementById("video")
+let canvas=document.getElementById("canvas")
+let ctx=canvas.getContext("2d")
+
+canvas.width=video.videoWidth
+canvas.height=video.videoHeight
+
+ctx.drawImage(video,0,0)
+
+let img=ctx.getImageData(0,0,canvas.width,canvas.height)
+
+let detected=detectByColor(img)
+
+history.push(detected)
+
+document.getElementById("detected").innerHTML="Detected: "+detected
+
+update()
+
+}
+
+/* COLOR AI */
+
+function detectByColor(img){
+
+let r=0,g=0,b=0,count=0
+
+for(let i=0;i<img.data.length;i+=40){
+r+=img.data[i]
+g+=img.data[i+1]
+b+=img.data[i+2]
+count++
+}
+
+r/=count
+g/=count
+b/=count
+
+// mapping colors
+if(r>200 && g>150) return "corn"
+if(r>200 && g<80) return "tomato"
+if(r>150 && g>80) return "carrot"
+if(g>150 && r<100) return "pepper"
+if(b>150) return "fish"
+if(r>180 && b>100) return "shrimp"
+if(r>120 && g<80 && b<80) return "cow"
+
+return "chicken"
+
+}
+
+/* AI */
+
+function aiScores(){
+
+let s={}
+foods.forEach(f=>s[f]=0)
+
+foods.forEach(f=>{
+s[f]+=Math.random()*2
+
+let last=history.slice(-5)
+let count=last.filter(x=>x===f).length
+
+if(count==0)s[f]+=2
+if(count>=3)s[f]-=2
+
+})
+
+return s
+
+}
+
+/* MONTE */
+
+function monteCarlo(){
+
+let sim={}
+foods.forEach(f=>sim[f]=0)
+
+for(let i=0;i<5000;i++){
+
+let scores=aiScores()
+
+let total=Object.values(scores).reduce((a,b)=>a+b,0)
+
+let r=Math.random()*total
+let cum=0
+
+for(let f of foods){
+cum+=scores[f]
+if(r<=cum){
+sim[f]++
+break
+}
+}
+
+}
+
+foods.forEach(f=>{
+sim[f]=(sim[f]/5000*100).toFixed(1)
+})
+
+return sim
+
+}
+
+/* UPDATE */
+
+function update(){
+
+let s=aiScores()
+let sorted=Object.entries(s).sort((a,b)=>b[1]-a[1])
+
+let top=sorted.slice(0,5).map(x=>x[0])
+
+document.getElementById("prediction").innerHTML=
+"Prediction: "+top.join(" ")
+
+let monte=monteCarlo()
+
+document.getElementById("monte").innerHTML=
+JSON.stringify(monte)
+
+}
+
+/* AUTO LOOP */
+
+setInterval(()=>{
+
+if(!auto) return
+
+capture()
+
+},1500)
+
+</script></body>
+</html>
